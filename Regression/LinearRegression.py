@@ -1,14 +1,14 @@
 import pandas as pd
 import numpy as np
-import matplotlib as plt
 import tensorflow.compat.v1 as tf
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from sklearn import linear_model
 
 
 class LinearRegression():
-    def __init__(self, loss="l2", lammy=1, num_epochs=40, learning_rate=0.1, verbose=0):
+    def __init__(self, session, loss="l2", lammy=1, num_epochs=40, learning_rate=0.1, verbose=0 ):
         self.loss = loss
         self.lammy = lammy
         self.num_epochs = num_epochs
@@ -16,7 +16,7 @@ class LinearRegression():
         self.learning_rate = learning_rate
         self.w = None
         self.b = None
-        self.session = None
+        self.session = session
         tf.disable_eager_execution()
 
     def fit(self, X, y):
@@ -25,9 +25,8 @@ class LinearRegression():
         self.w = tf.get_variable("W", (X.shape[1], 1), tf.float32, tf.zeros_initializer())
         self.b = tf.get_variable("B", (1, 1), tf.float32, tf.zeros_initializer())
         cost = self.compute_cost(x_tf, y_tf)
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate).minimize(cost)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
         init = tf.global_variables_initializer()
-        self.session = tf.Session()
         self.session.run(init)
         for epoch in range(self.num_epochs):
             _, epoch_cost = self.session.run([optimizer, cost], feed_dict={x_tf: X, y_tf: y})
@@ -71,9 +70,16 @@ if __name__ == '__main__':
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = LinearRegression(verbose=1, loss='l1', learning_rate=0.1, num_epochs=60)
-    model.fit(X_train, y_train)
-    pred = model.predict(X_test)
+    with tf.Session() as sess:
+        model = LinearRegression(sess, verbose=1, loss='l1', learning_rate=0.05, num_epochs=60)
+        model.fit(X_train, y_train)
+        pred = model.predict(X_test)
 
     difference = np.mean(np.square(pred - np.array(y_test)))
     print("The test error is: ", difference)
+
+    model = linear_model.LinearRegression()
+    model.fit(X_train, y_train)
+    pred = model.predict(X_test)
+    difference = np.mean(np.square(pred - np.array(y_test)))
+    print("The test error from sk-learn is: ", difference)
