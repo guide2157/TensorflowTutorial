@@ -1,14 +1,11 @@
-import pandas as pd
 import numpy as np
 import tensorflow.compat.v1 as tf
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
 from sklearn import linear_model
+import utils
 
 
 class LinearRegression():
-    def __init__(self, session, loss="l2", lammy=1, num_epochs=40, learning_rate=0.1, verbose=0 ):
+    def __init__(self, session, loss="l2", lammy=1, num_epochs=40, learning_rate=0.1, verbose=0):
         self.loss = loss
         self.lammy = lammy
         self.num_epochs = num_epochs
@@ -28,8 +25,12 @@ class LinearRegression():
         optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
         init = tf.global_variables_initializer()
         self.session.run(init)
-        for epoch in range(self.num_epochs):
+        last_cost = 0
+        for epoch in range(self.num_epochs + 1):
             _, epoch_cost = self.session.run([optimizer, cost], feed_dict={x_tf: X, y_tf: y})
+            if abs(epoch_cost - last_cost) < 1e-10:
+                break
+            last_cost = epoch_cost
             if self.verbose > 0:
                 print("Cost after epoch %i: %f" % (epoch, epoch_cost))
 
@@ -43,35 +44,16 @@ class LinearRegression():
         result = tf.add(tf.matmul(X, self.w), self.b)
         rsq = tf.reduce_mean((result - y) ** 2)
         if self.loss == 'l2':
-            return rsq + self.lammy * tf.reduce_sum(self.w**2) / 2
+            return rsq + self.lammy * tf.reduce_sum(self.w ** 2) / 2
         else:
             return rsq + self.lammy * tf.reduce_sum(tf.abs(self.w))
 
 
 if __name__ == '__main__':
-    dataset = pd.read_csv("avocado.csv")
-    dataset.drop(['Date', 'Total Bags', 'Small Bags', 'Large Bags', 'XLarge Bags', 'year', 'region'],
-                 inplace=True, axis=1)
-    dataset.drop(dataset.columns[[0]], axis=1, inplace=True)
-
-    le = LabelEncoder()
-    dataset['type'] = le.fit_transform(dataset['type'])
-    onehot = OneHotEncoder()
-    type = dataset['type'].values
-    type_encoded = onehot.fit_transform(dataset.type.values.reshape(-1, 1)).toarray()
-    dataset.drop(['type'], inplace=True, axis=1)
-    encoded_data = pd.DataFrame(np.concatenate([dataset, type_encoded], axis=1))
-
-    y = encoded_data[0]
-    X = encoded_data.drop([0], axis=1)
-
-    scaler = StandardScaler()
-    X = pd.DataFrame(scaler.fit_transform(X))
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = utils.preprocess_avocado()
 
     with tf.Session() as sess:
-        model = LinearRegression(sess, verbose=1, loss='l1', learning_rate=0.05, num_epochs=60)
+        model = LinearRegression(sess, verbose=1, loss='l1', learning_rate=0.01, num_epochs=500)
         model.fit(X_train, y_train)
         pred = model.predict(X_test)
 
